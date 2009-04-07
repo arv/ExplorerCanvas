@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Overflow Test</title>
+<style>
+
+body {
+  text-align: center
+}
+
+</style>
+<!--[if IE]><script src="../excanvas.js"></script><![endif]-->
+<script>
+
+function draw() {
+  var ctx = document.getElementById('c').getContext('2d');
+  var w = 608 / 2;
+  var h = 380 / 2;
+
+  ctx.save();
+  ctx.translate(w, 0);
+  ctx.drawImage(img, 0, 0, w, h);
+  ctx.restore();
+
+  ctx.save();
+  ctx.translate(w, 0);
+  ctx.scale(-1, 1);
+  ctx.drawImage(img, 0, 0, w, h);
+  ctx.restore();
+
+  ctx.save();
+  ctx.translate(w, 2 * h);
+  ctx.scale(1, -1);
+  ctx.drawImage(img, 0, 0, w, h);
+  ctx.restore();
+
+  ctx.save();
+  ctx.translate(w, 2 * h);
+  ctx.scale(-1, -1);
+  ctx.drawImage(img, 0, 0, w, h);
+  ctx.restore();
+};
+
+var img = new Image;
+img.onload = draw;
+window.onload = function() {
+  img.src = '../examples/ff.jpg';
+};
+
+</script>
+</head>
+<body>
+
+<canvas id=c width=608 height=380></canvas>
+
+</body>
+</html>
