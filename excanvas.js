@@ -115,7 +115,6 @@ if (!document.createElement('canvas').getContext) {
             'text-align:left;width:300px;height:150px}' +
             'g_vml_\\:*{behavior:url(#default#VML)}' +
             'g_o_\\:*{behavior:url(#default#VML)}';
-
       }
 
       // find all canvas elements
@@ -135,7 +134,6 @@ if (!document.createElement('canvas').getContext) {
      */
     initElement: function(el) {
       if (!el.getContext) {
-
         el.getContext = getContext;
 
         // Remove fallback content. There is no way to hide text nodes so we
@@ -539,7 +537,8 @@ if (!document.createElement('canvas').getContext) {
     // The following check doesn't account for skews (which don't exist
     // in the canvas spec (yet) anyway.
 
-    if (this.m_[0][0] != 1 || this.m_[0][1]) {
+    if (this.m_[0][0] != 1 || this.m_[0][1] ||
+        this.m_[1][1] != 1 || this.m_[1][0]) {
       var filter = [];
 
       // Note the 12/21 reversal

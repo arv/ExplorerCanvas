@@ -9,18 +9,18 @@ body {
 }
 
 </style>
-<!--[if IE]><script type="text/javascript" src="../excanvas.js"></script><![endif]-->
+<!--[if IE]><script src="../excanvas.js"></script><![endif]-->
 <script>
 
 window.onload = function() {
   var ctx = document.getElementById('c').getContext('2d');
-	
+
   ctx.fillStyle = 'blue';
   ctx.fillRect(-50, -50, 100, 100);
-  
+
   ctx.fillStyle = 'green';
   ctx.fillRect(50, 50, 100, 100);
-  
+
   ctx.strokeStyle = 'black';
   ctx.strokeRect(0, 0, 100, 100);
 };
