@@ -48,6 +48,9 @@ if (!document.createElement('canvas').getContext) {
   var Z = 10;
   var Z2 = Z / 2;
 
+  // In IE8 standards mode we have to wrap the filter value in quotes.
+  var Q = document.documentMode >= 8 ? '"' : '';
+
   /**
    * This funtion is assigned to the <canvas> elements as element.getContext().
    * @this {HTMLElement}
@@ -560,8 +563,9 @@ if (!document.createElement('canvas').getContext) {
       max.y = m.max(max.y, c2.y, c3.y, c4.y);
 
       vmlStr.push('padding:0 ', mr(max.x / Z), 'px ', mr(max.y / Z),
-                  'px 0;filter:progid:DXImageTransform.Microsoft.Matrix(',
-                  filter.join(''), ", sizingmethod='clip');")
+                  'px 0;filter:', Q,
+                  'progid:DXImageTransform.Microsoft.Matrix(',
+                  filter.join(''), ", sizingmethod='clip')", Q, ';')
     } else {
       vmlStr.push('top:', mr(d.y / Z), 'px;left:', mr(d.x / Z), 'px;');
     }
@@ -569,7 +573,7 @@ if (!document.createElement('canvas').getContext) {
     vmlStr.push(' ">' ,
                 '<g_vml_:image src="', image.src, '"',
                 ' style="width:', Z * dw, 'px;',
-                ' height:', Z * dh, 'px;"',
+                ' height:', Z * dh, 'px"',
                 ' cropleft="', sx / w, '"',
                 ' croptop="', sy / h, '"',
                 ' cropright="', (w - sx - sw) / w, '"',
@@ -577,8 +581,7 @@ if (!document.createElement('canvas').getContext) {
                 ' />',
                 '</g_vml_:group>');
 
-    this.element_.insertAdjacentHTML('BeforeEnd',
-                                    vmlStr.join(''));
+    this.element_.insertAdjacentHTML('BeforeEnd', vmlStr.join(''));
   };
 
   contextPrototype.stroke = function(aFill) {
@@ -594,7 +597,8 @@ if (!document.createElement('canvas').getContext) {
     lineStr.push('<g_vml_:shape',
                  ' filled="', !!aFill, '"',
                  ' style="position:absolute;width:', W, 'px;height:', H, 'px;"',
-                 ' coordorigin="0 0" coordsize="', Z * W, ' ', Z * H, '"',
+                 ' coordorigin="0,0"',
+                 ' coordsize="', Z * W, ',', Z * H, '"',
                  ' stroked="', !aFill, '"',
                  ' path="');
 
@@ -807,8 +811,10 @@ if (!document.createElement('canvas').getContext) {
   };
 
   contextPrototype.restore = function() {
-    copyState(this.aStack_.pop(), this);
-    this.m_ = this.mStack_.pop();
+    if (this.aStack_.length) {
+      copyState(this.aStack_.pop(), this);
+      this.m_ = this.mStack_.pop();
+    }
   };
 
   function matrixIsFinite(m) {
