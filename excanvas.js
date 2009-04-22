@@ -15,7 +15,7 @@
 
 // Known Issues:
 //
-// * Patterns are not implemented.
+// * Patterns only support repeat.
 // * Radial gradient are not implemented. The VML version of these look very
 //   different from the canvas one.
 // * Clipping paths are not implemented.
@@ -86,6 +86,43 @@ if (!document.createElement('canvas').getContext) {
     };
   }
 
+  function arrayContains(arr, item) {
+    var length = this.length;
+    for (var i = 0; i < length; i++) {
+      if (arr[i] === item) return true;
+    }
+    return false;
+  }
+
+  function encodeHtmlAttribute(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+  }
+
+  function addNamespacesAndStylesheet(doc) {
+    // create xmlns
+    if (!doc.namespaces['g_vml_']) {
+      doc.namespaces.add('g_vml_', 'urn:schemas-microsoft-com:vml',
+                         '#default#VML');
+
+    }
+    if (!doc.namespaces['g_o_']) {
+      doc.namespaces.add('g_o_', 'urn:schemas-microsoft-com:office:office',
+                         '#default#VML');
+    }
+
+    // Setup default CSS.  Only add one style sheet per document
+    if (!doc.styleSheets['ex_canvas_']) {
+      var ss = doc.createStyleSheet();
+      ss.owningElement.id = 'ex_canvas_';
+      ss.cssText = 'canvas{display:inline-block;overflow:hidden;' +
+          // default size is 300x150 in Gecko and Opera
+          'text-align:left;width:300px;height:150px}';
+    }
+  }
+
+  // Add namespaces and stylesheet at startup.
+  addNamespacesAndStylesheet(document);
+
   var G_vmlCanvasManager_ = {
     init: function(opt_doc) {
       if (/MSIE/.test(navigator.userAgent) && !window.opera) {
@@ -98,28 +135,6 @@ if (!document.createElement('canvas').getContext) {
     },
 
     init_: function(doc) {
-      // create xmlns
-      if (!doc.namespaces['g_vml_']) {
-        doc.namespaces.add('g_vml_', 'urn:schemas-microsoft-com:vml',
-                           '#default#VML');
-
-      }
-      if (!doc.namespaces['g_o_']) {
-        doc.namespaces.add('g_o_', 'urn:schemas-microsoft-com:office:office',
-                           '#default#VML');
-      }
-
-      // Setup default CSS.  Only add one style sheet per document
-      if (!doc.styleSheets['ex_canvas_']) {
-        var ss = doc.createStyleSheet();
-        ss.owningElement.id = 'ex_canvas_';
-        ss.cssText = 'canvas{display:inline-block;overflow:hidden;' +
-            // default size is 300x150 in Gecko and Opera
-            'text-align:left;width:300px;height:150px}' +
-            'g_vml_\\:*{behavior:url(#default#VML)}' +
-            'g_o_\\:*{behavior:url(#default#VML)}';
-      }
-
       // find all canvas elements
       var els = doc.getElementsByTagName('canvas');
       for (var i = 0; i < els.length; i++) {
@@ -138,6 +153,9 @@ if (!document.createElement('canvas').getContext) {
     initElement: function(el) {
       if (!el.getContext) {
         el.getContext = getContext;
+
+        // Add namespaces and stylesheet to document of the element.
+        addNamespacesAndStylesheet(el.ownerDocument);
 
         // Remove fallback content. There is no way to hide text nodes so we
         // just remove all childNodes. We could hide all elements and remove
@@ -239,6 +257,9 @@ if (!document.createElement('canvas').getContext) {
     o2.shadowOffsetY = o1.shadowOffsetY;
     o2.strokeStyle   = o1.strokeStyle;
     o2.globalAlpha   = o1.globalAlpha;
+    o2.font          = o1.font;
+    o2.textAlign     = o1.textAlign;
+    o2.textBaseline  = o1.textBaseline;
     o2.arcScaleX_    = o1.arcScaleX_;
     o2.arcScaleY_    = o1.arcScaleY_;
     o2.lineScale_    = o1.lineScale_;
@@ -266,6 +287,78 @@ if (!document.createElement('canvas').getContext) {
     }
 
     return {color: str, alpha: alpha};
+  }
+
+  var DEFAULT_STYLE = {
+    style: 'normal',
+    variant: 'normal',
+    weight: 'normal',
+    size: 10,
+    family: 'sans-serif'
+  };
+
+  // Internal text style cache
+  var fontStyleCache = {};
+
+  function processFontStyle(styleString) {
+    styleString = styleString.replace(/^\s+|\s+$/g, ''); // trim
+
+    if (fontStyleCache[styleString]) {
+      return fontStyleCache[styleString];
+    }
+
+    var el = document.createElement('div');
+    var style = el.style;
+    try {
+      style.font = styleString;
+    } catch (ex) {
+      // Ignore failures to set to invalid font.
+    }
+
+    return fontStyleCache[styleString] = {
+      style: style.fontStyle || DEFAULT_STYLE.style,
+      variant: style.fontVariant || DEFAULT_STYLE.variant,
+      weight: style.fontWeight || DEFAULT_STYLE.weight,
+      size: style.fontSize || DEFAULT_STYLE.size,
+      family: style.fontFamily || DEFAULT_STYLE.family
+    };
+  }
+
+  function getComputedStyle(style, element) {
+    var computedStyle = {};
+
+    for (var p in style) {
+      computedStyle[p] = style[p];
+    }
+
+    // Compute the size
+    var canvasFontSize = parseFloat(element.currentStyle.fontSize),
+        fontSize = parseFloat(style.size);
+
+    if (typeof style.size == 'number') {
+      computedStyle.size = style.size;
+    } else if (style.size.indexOf('px') != -1) {
+      computedStyle.size = parseFloat(style.size);
+    } else if (style.size.indexOf('em') != -1) {
+      computedStyle.size = canvasFontSize * fontSize;
+    } else if(style.size.indexOf('%') != -1) {
+      computedStyle.size = (canvasFontSize / 100) * fontSize;
+    } else if (style.size.indexOf('pt') != -1) {
+      computedStyle.size = canvasFontSize * (4/3) * fontSize;
+    } else {
+      computedStyle.size = canvasFontSize;
+    }
+
+    // Different scaling between normal text and VML text. This was found using
+    // trial and error to get the same size as non VML text.
+    computedStyle.size *= 0.981;
+
+    return computedStyle;
+  }
+
+  function buildStyle(style) {
+    return style.style + ' ' + style.variant + ' ' + style.weight + ' ' +
+        style.size + 'px ' + style.family;
   }
 
   function processLineCap(lineCap) {
@@ -302,6 +395,9 @@ if (!document.createElement('canvas').getContext) {
     this.lineCap = 'butt';
     this.miterLimit = Z * 1;
     this.globalAlpha = 1;
+    this.font = '10px sans-serif';
+    this.textAlign = 'left';
+    this.textBaseline = 'alphabetic';
     this.canvas = surfaceElement;
 
     var el = surfaceElement.ownerDocument.createElement('div');
@@ -319,6 +415,10 @@ if (!document.createElement('canvas').getContext) {
 
   var contextPrototype = CanvasRenderingContext2D_.prototype;
   contextPrototype.clearRect = function() {
+    if (this.textMeasureEl_) {
+      this.textMeasureEl_.removeNode(true);
+      this.textMeasureEl_ = null;
+    }
     this.element_.innerHTML = '';
   };
 
@@ -785,7 +885,7 @@ if (!document.createElement('canvas').getContext) {
 
   contextPrototype.fill = function() {
     this.stroke(true);
-  }
+  };
 
   contextPrototype.closePath = function() {
     this.currentPath_.push({type: 'close'});
@@ -799,7 +899,7 @@ if (!document.createElement('canvas').getContext) {
     return {
       x: Z * (aX * m[0][0] + aY * m[1][0] + m[2][0]) - Z2,
       y: Z * (aX * m[0][1] + aY * m[1][1] + m[2][1]) - Z2
-    }
+    };
   };
 
   contextPrototype.save = function() {
@@ -818,14 +918,9 @@ if (!document.createElement('canvas').getContext) {
   };
 
   function matrixIsFinite(m) {
-    for (var j = 0; j < 3; j++) {
-      for (var k = 0; k < 2; k++) {
-        if (!isFinite(m[j][k]) || isNaN(m[j][k])) {
-          return false;
-        }
-      }
-    }
-    return true;
+    return isFinite(m[0][0]) && isFinite(m[0][1]) &&
+        isFinite(m[1][0]) && isFinite(m[1][1]) &&
+        isFinite(m[2][0]) && isFinite(m[2][1]);
   }
 
   function setM(ctx, m, updateLineScale) {
@@ -899,6 +994,145 @@ if (!document.createElement('canvas').getContext) {
     setM(this, m, true);
   };
 
+  /**
+   * The text drawing function.
+   * The maxWidth argument isn't taken in account, since no browser supports
+   * it yet.
+   */
+  contextPrototype.drawText_ = function(text, x, y, maxWidth, stroke) {
+    var a = processStyle(stroke ? this.strokeStyle : this.fillStyle),
+        color = a.color,
+        opacity = a.alpha * this.globalAlpha,
+        fontStyle = getComputedStyle(processFontStyle(this.font),
+                                     this.element_),
+        fontStyleString = buildStyle(fontStyle),
+        lineWidth = this.lineScale_ * this.lineWidth,
+
+        m = this.m_,
+        delta = 1000,
+        left = 0,
+        right = delta,
+        offset = {x: 0, y: 0},
+        lineStr = [],
+        style = '';
+
+    // In case the line width is less than 1 we use opacity to make the line
+    // less strong.
+    if (lineWidth < 1) {
+      opacity *= lineWidth;
+    }
+
+    var elementStyle = this.element_.currentStyle;
+    var textAlign = this.textAlign.toLowerCase();
+    switch (textAlign) {
+      case 'left':
+      case 'center':
+      case 'right':
+        break;
+      case 'end':
+        textAlign = elementStyle.direction == 'ltr' ? 'right' : 'left';
+        break;
+      case 'start':
+        textAlign = elementStyle.direction == 'rtl' ? 'right' : 'left';
+        break;
+      default:
+        textAlign = 'left';
+    }
+
+    // 1.75 is an arbitrary number, as there is no info about the text baseline
+    switch (this.textBaseline) {
+      case 'hanging':
+      case 'top':
+        offset.y = fontStyle.size / 1.75;
+        break;
+      case 'middle':
+        break;
+      default:
+      case null:
+      case 'alphabetic':
+      case 'ideographic':
+      case 'bottom':
+        offset.y = -fontStyle.size / 1.75;
+        break;
+    }
+
+    switch(textAlign) {
+      case 'right':
+        left = delta;
+        right = 0;
+        break;
+      case 'center':
+        left = right = delta / 2;
+        break;
+    }
+
+    var d = this.getCoords_(x + offset.x, y + offset.y),
+        dx = mr(d.x / Z),
+        dy = mr(d.y / Z);
+
+    var from = {x: mr(dx - left * m[0][0]), y: mr(dy - left * m[0][1])},
+        to = {x: mr(dx + right * m[0][0]), y: mr(dy + right * m[0][1])};
+
+    // Ugly hack to make IE draw the TextPath even if the line is horizontal or
+    // vertical.
+    if (from.y == to.y) {
+      to.y += 0.05;
+    } else if (from.x == to.x) {
+      to.x += 0.05;
+    }
+
+    lineStr.push('<g_vml_:line from="', from.x, ' ', from.y, '" to="', to.x,
+                 ' ', to.y, '" filled="', !stroke, '" stroked="', !!stroke,
+                 '" style="position:absolute;', style, '">');
+
+    if (stroke) {
+      lineStr.push('<g_vml_:stroke on="true"',
+                   ' opacity="', opacity, '"',
+                   ' joinstyle="', this.lineJoin, '"',
+                   ' miterlimit="', this.miterLimit, '"',
+                   ' endcap="', processLineCap(this.lineCap), '"',
+                   ' weight="', lineWidth, 'px"',
+                   ' color="', color, '" />');
+    } else {
+      lineStr.push('<g_vml_:fill on="true" opacity="', opacity,
+                   '" color="', color, '" />');
+    }
+
+    lineStr.push('<g_vml_:path textpathok="true" />' +
+                 '<g_vml_:textpath on="true" string="',
+                 encodeHtmlAttribute(text),
+                 '" style="v-text-align:', textAlign,
+                 ';font:', encodeHtmlAttribute(fontStyleString),
+                 '" /></g_vml_:line>');
+
+    this.element_.insertAdjacentHTML('beforeEnd', lineStr.join(''));
+  };
+
+  contextPrototype.fillText = function(text, x, y, maxWidth) {
+    this.drawText_(text, x, y, maxWidth, false);
+  };
+
+  contextPrototype.strokeText = function(text, x, y, maxWidth) {
+    this.drawText_(text, x, y, maxWidth, true);
+  };
+
+  contextPrototype.measureText = function(text) {
+    if (!this.textMeasureEl_) {
+      // We should also parse the font style, as it is done in the drawing
+      // methods.
+      var s = '<span style="position:absolute;' +
+          'top:-20000px;left:0;padding:0;margin:0;border:none;' +
+          'white-space:pre;font:' + this.font + '"></span>';
+      this.element_.insertAdjacentHTML('beforeEnd', s);
+      this.textMeasureEl_ = this.element_.lastChild;
+    }
+    var doc = this.element_.ownerDocument;
+    this.textMeasureEl_.innerHTML = '';
+    // Don't use innerHTML or innerText because they allow markup/whitespace.
+    this.textMeasureEl_.appendChild(doc.createTextNode(text));
+    return {width: this.textMeasureEl_.offsetWidth};
+  };
+
   /******** STUBS ********/
   contextPrototype.clip = function() {
     // TODO: Implement
@@ -969,7 +1203,7 @@ if (!document.createElement('canvas').getContext) {
   function DOMException_(s) {
     this.code = this[s];
     this.message = s +': DOM Exception ' + this.code;
-  };
+  }
   var p = DOMException_.prototype = new Error;
   p.INDEX_SIZE_ERR = 1;
   p.DOMSTRING_SIZE_ERR = 2;
@@ -994,8 +1228,7 @@ if (!document.createElement('canvas').getContext) {
   CanvasRenderingContext2D = CanvasRenderingContext2D_;
   CanvasGradient = CanvasGradient_;
   CanvasPattern = CanvasPattern_;
-  DOMException = DOMException_
-
+  DOMException = DOMException_;
 })();
 
 } // if

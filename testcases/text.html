@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Text Test</title>
+<style>
+
+
+</style>
+<!--[if IE]><script src="../excanvas.js"></script><![endif]-->
+<script>
+
+window.onload = draw;
+
+
+function draw() {
+  var ctx = document.getElementById('c').getContext('2d');
+  ctx.save();
+  ctx.rotate(Math.PI / 4)
+  ctx.fillText('Hello World', 100, 100);
+  ctx.restore();
+}
+
+function value(id) {
+  return document.getElementById(id).value;
+}
+
+var text = 'Hello World'
+var font = '10px arial';
+var textAlign = 'left';
+var textBaseline = 'middle';
+
+var v = 0;
+
+function draw() {
+  text = value('text');
+  font = value('font');
+  textAlign = value('textAlign');
+  textBaseline = value('textBaseline');
+
+  var ctx = document.getElementById('c').getContext('2d');
+  ctx.save();
+
+  ctx.font = font;
+  ctx.textAlign = textAlign;
+  ctx.textBaseline = textBaseline;
+
+  ctx.clearRect(0, 0, 500, 500);
+  ctx.translate(250, 250);
+  ctx.rotate(v);
+
+  ctx.fillText(text, 0, 0);
+
+  ctx.restore();
+
+  v += Math.PI / 100;
+}
+
+setInterval(draw, 50);
+
+
+</script>
+</head>
+<body>
+
+<canvas id=c width=500 height=500></canvas>
+
+<br><input type=text id=text value="Hello World">
+<br><input type=text id=font value="15px arial">
+<br><input type=text id=textAlign value="center">
+<br><input type=text id=textBaseline value="middle">
+
+
+</body>
+</html>
