@@ -18,7 +18,6 @@
 // * Patterns are not implemented.
 // * Radial gradient are not implemented. The VML version of these look very
 //   different from the canvas one.
-// * Clipping paths are not implemented.
 // * Coordsize. The width and height attribute have higher priority than the
 //   width and height style values which isn't correct.
 // * Painting mode isn't implemented.
@@ -650,9 +649,16 @@ if (!window.CanvasRenderingContext2D) {
     ]);
   };
 
-  /******** STUBS ********/
   contextPrototype.clip = function() {
-    // TODO: Implement
+    if (this.currentPath_.length) {
+      var clip = this.currentPath_.join(' ');
+      var canvas = create(this, '<Canvas Width="%1" Height="%2" Clip="%3"/>',
+                          [getRoot(this).width, getRoot(this).height, clip]);
+      var parent = this.lastCanvas_ || getRoot(this);
+
+      parent.children.add(canvas);
+      this.lastCanvas_ = canvas;
+    }
   };
 
   contextPrototype.createPattern = function() {
