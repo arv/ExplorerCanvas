@@ -532,7 +532,7 @@ if (!document.createElement('canvas').getContext) {
     } else if(style.size.indexOf('%') != -1) {
       computedStyle.size = (canvasFontSize / 100) * fontSize;
     } else if (style.size.indexOf('pt') != -1) {
-      computedStyle.size = canvasFontSize * (4/3) * fontSize;
+      computedStyle.size = fontSize / .75;
     } else {
       computedStyle.size = canvasFontSize;
     }
