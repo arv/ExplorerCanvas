@@ -67,8 +67,13 @@ if (!window.CanvasRenderingContext2D) {
       ss.cssText = 'canvas{display:inline-block;overflow:hidden;' +
           // default size is 300x150 in Gecko and Opera
           'text-align:left;width:300px;height:150px}' +
-          'canvas object{width:100%;height:100%;border:0;' +
-          'background:transparen;margin:0}';
+          'canvas *{width:100%;height:100%;border:0;' +
+          'background:transparen;margin:0}' +
+          'canvas div {position:relative}' +
+          // Place a div on top of the plugin.
+          'canvas div div{position:absolute;top:0;' +
+          // needs to be "non transparent"
+          'filter:alpha(opacity=0);background:red}';
 
       // find all canvas elements
       var els = doc.getElementsByTagName('canvas');
@@ -157,11 +162,11 @@ if (!window.CanvasRenderingContext2D) {
   }
 
   function getObjectHtml(fn) {
-    return '<object type="application/x-silverlight" >' +
+    return '<div><object type="application/x-silverlight" >' +
         '<param name="windowless" value="true">' +
         '<param name="background" value="transparent">' +
         '<param name="source" value="#' + xamlId + '">' +
-        '</object>';
+        '</object><div></div></div>';
   }
 
   function hasSilverlight() {
@@ -246,25 +251,113 @@ if (!window.CanvasRenderingContext2D) {
     o2.arcScaleY_    = o1.arcScaleY_;
   }
 
-  function translateColor(s) {
-    var rgbaMatch = /rgba\(([^)]+)\)/gi.exec(s);
-    if (rgbaMatch) {
-      var parts = rgbaMatch[1].split(',');
-      return '#' + dec2hex[Math.floor(Number(parts[3]) * 255)] +
-          dec2hex[Number(parts[0])] +
-          dec2hex[Number(parts[1])] +
-          dec2hex[Number(parts[2])];
+  // precompute "00" to "FF"
+  var decToHex = [];
+  for (var i = 0; i < 16; i++) {
+    for (var j = 0; j < 16; j++) {
+      decToHex[i * 16 + j] = i.toString(16) + j.toString(16);
+    }
+  }
+
+  // Silverlight does not support spelling gray as grey.
+  var colorData = {
+    darkgrey: '#A9A9A9',
+    darkslategrey: '#2F4F4F',
+    dimgrey: '#696969',
+    grey: '#808080',
+    lightgrey: '#D3D3D3',
+    lightslategrey: '#778899',
+    slategrey: '#708090'
+  };
+
+
+  function getRgbHslContent(styleString) {
+    var start = styleString.indexOf('(', 3);
+    var end = styleString.indexOf(')', start + 1);
+    var parts = styleString.substring(start + 1, end).split(',');
+    // add alpha if needed
+    if (parts.length == 4 && styleString.substr(3, 1) == 'a') {
+      alpha = +parts[3];
+    } else {
+      parts[3] = 1;
+    }
+    return parts;
+  }
+
+  function percent(s) {
+    return parseFloat(s) / 100;
+  }
+
+  function clamp(v, min, max) {
+    return Math.min(max, Math.max(min, v));
+  }
+
+  function hslToRgb(parts){
+    var r, g, b;
+    h = parseFloat(parts[0]) / 360 % 360;
+    if (h < 0)
+      h++;
+    s = clamp(percent(parts[1]), 0, 1);
+    l = clamp(percent(parts[2]), 0, 1);
+    if (s == 0) {
+      r = g = b = l; // achromatic
+    } else {
+      var q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+      var p = 2 * l - q;
+      r = hueToRgb(p, q, h + 1 / 3);
+      g = hueToRgb(p, q, h);
+      b = hueToRgb(p, q, h - 1 / 3);
     }
 
-    var rgbMatch  = /rgb\(([^)]+)\)/gi.exec(s);
-    if (rgbMatch) {
-      var parts = rgbMatch[1].split(',');
-      return '#FF' + dec2hex[Number(parts[0])] +
-          dec2hex[Number(parts[1])] +
-          dec2hex[Number(parts[2])];
-    }
+    return decToHex[Math.floor(r * 255)] +
+        decToHex[Math.floor(g * 255)] +
+        decToHex[Math.floor(b * 255)];
+  }
 
-    return s;
+  function hueToRgb(m1, m2, h) {
+    if (h < 0)
+      h++;
+    if (h > 1)
+      h--;
+
+    if (6 * h < 1)
+      return m1 + (m2 - m1) * 6 * h;
+    else if (2 * h < 1)
+      return m2;
+    else if (3 * h < 2)
+      return m1 + (m2 - m1) * (2 / 3 - h) * 6;
+    else
+      return m1;
+  }
+
+  function translateColor(styleString) {
+    var str, alpha = 1;
+
+    styleString = String(styleString);
+    if (styleString.charAt(0) == '#') {
+      return styleString;
+    } else if (/^rgb/.test(styleString)) {
+      var parts = getRgbHslContent(styleString);
+      var str = '', n;
+      for (var i = 0; i < 3; i++) {
+        if (parts[i].indexOf('%') != -1) {
+          n = Math.floor(percent(parts[i]) * 255);
+        } else {
+          n = +parts[i];
+        }
+        str += decToHex[clamp(n, 0, 255)];
+      }
+      alpha = parts[3];
+    } else if (/^hsl/.test(styleString)) {
+      var parts = getRgbHslContent(styleString);
+      str = hslToRgb(parts);
+      alpha = parts[3];
+    } else if (styleString in colorData) {
+      return colorData[styleString];
+    } else {
+      return styleString;
+    }
+    return '#' + dec2hex[Math.floor(alpha * 255)] + str;
   }
 
   function processLineCap(lineCap) {
@@ -280,18 +373,18 @@ if (!window.CanvasRenderingContext2D) {
   }
 
   function getRoot(ctx) {
-    return ctx.canvas.firstChild.content.findName('root');
+    return ctx.canvas.firstChild.firstChild.content.findName('root');
   }
 
   function create(ctx, s, opt_args) {
     if (opt_args) {
       s = s.replace(/\%(\d+)/g, function(match, index) {
-        return opt_args[Number(index) - 1];
+        return opt_args[+index - 1];
       });
     }
 
     try {
-      return ctx.canvas.firstChild.content.createFromXaml(s);
+      return ctx.canvas.firstChild.firstChild.content.createFromXaml(s);
     } catch (ex) {
       throw Error('Could not create XAML from: ' + s);
     }
@@ -570,6 +663,7 @@ if (!window.CanvasRenderingContext2D) {
     // The spec says to use non zero but Silverlight uses EvenOdd by defaul
     path.data.fillRule = 'NonZero';
     path.fill = createBrushObject(this, this.fillStyle);
+    path.fill.opacity = this.globalAlpha;
     // TODO: What about even-odd etc?
   };
 
