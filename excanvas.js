@@ -48,6 +48,8 @@ if (!document.createElement('canvas').getContext) {
   var Z = 10;
   var Z2 = Z / 2;
 
+  var IE_VERSION = +navigator.userAgent.match(/MSIE ([\d.]+)?/)[1];
+
   /**
    * This funtion is assigned to the <canvas> elements as element.getContext().
    * @this {HTMLElement}
@@ -87,17 +89,20 @@ if (!document.createElement('canvas').getContext) {
     return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;');
   }
 
-  function addNamespacesAndStylesheet(doc) {
-    // create xmlns
-    if (!doc.namespaces['g_vml_']) {
-      doc.namespaces.add('g_vml_', 'urn:schemas-microsoft-com:vml',
-                         '#default#VML');
+  function addNamespace(doc, prefix, urn) {
+    if (!doc.namespaces[prefix]) {
+      if (IE_VERSION >= 7) {
+        doc.namespaces.add(prefix, urn).doImport('#default#VML');
+      } else {
+        // IE6 cannot handle the third argument.
+        doc.namespaces.add(prefix, urn);
+      }
+    }
+  }
 
-    }
-    if (!doc.namespaces['g_o_']) {
-      doc.namespaces.add('g_o_', 'urn:schemas-microsoft-com:office:office',
-                         '#default#VML');
-    }
+  function addNamespacesAndStylesheet(doc) {
+    addNamespace(doc, 'g_vml_', 'urn:schemas-microsoft-com:vml');
+    addNamespace(doc, 'g_o_', 'urn:schemas-microsoft-com:office:office');
 
     // Setup default CSS.  Only add one style sheet per document
     if (!doc.styleSheets['ex_canvas_']) {
@@ -114,13 +119,11 @@ if (!document.createElement('canvas').getContext) {
 
   var G_vmlCanvasManager_ = {
     init: function(opt_doc) {
-      if (/MSIE/.test(navigator.userAgent) && !window.opera) {
-        var doc = opt_doc || document;
-        // Create a dummy element so that IE will allow canvas elements to be
-        // recognized.
-        doc.createElement('canvas');
-        doc.attachEvent('onreadystatechange', bind(this.init_, this, doc));
-      }
+      var doc = opt_doc || document;
+      // Create a dummy element so that IE will allow canvas elements to be
+      // recognized.
+      doc.createElement('canvas');
+      doc.attachEvent('onreadystatechange', bind(this.init_, this, doc));
     },
 
     init_: function(doc) {
@@ -397,9 +400,7 @@ if (!document.createElement('canvas').getContext) {
     var end = styleString.indexOf(')', start + 1);
     var parts = styleString.substring(start + 1, end).split(',');
     // add alpha if needed
-    if (parts.length == 4 && styleString.substr(3, 1) == 'a') {
-      alpha = Number(parts[3]);
-    } else {
+    if (parts.length != 4 || styleString.charAt(3) != 'a') {
       parts[3] = 1;
     }
     return parts;
@@ -414,7 +415,7 @@ if (!document.createElement('canvas').getContext) {
   }
 
   function hslToRgb(parts){
-    var r, g, b;
+    var r, g, b, h, s, l;
     h = parseFloat(parts[0]) / 360 % 360;
     if (h < 0)
       h++;
@@ -464,11 +465,11 @@ if (!document.createElement('canvas').getContext) {
         if (parts[i].indexOf('%') != -1) {
           n = Math.floor(percent(parts[i]) * 255);
         } else {
-          n = Number(parts[i]);
+          n = +parts[i];
         }
         str += decToHex[clamp(n, 0, 255)];
       }
-      alpha = parts[3];
+      alpha = +parts[3];
     } else if (/^hsl/.test(styleString)) {
       var parts = getRgbHslContent(styleString);
       str = hslToRgb(parts);
@@ -564,10 +565,10 @@ if (!document.createElement('canvas').getContext) {
   /**
    * This class implements CanvasRenderingContext2D interface as described by
    * the WHATWG.
-   * @param {HTMLElement} surfaceElement The element that the 2D context should
+   * @param {HTMLElement} canvasElement The element that the 2D context should
    * be associated with
    */
-  function CanvasRenderingContext2D_(surfaceElement) {
+  function CanvasRenderingContext2D_(canvasElement) {
     this.m_ = createMatrixIdentity();
 
     this.mStack_ = [];
@@ -586,14 +587,19 @@ if (!document.createElement('canvas').getContext) {
     this.font = '10px sans-serif';
     this.textAlign = 'left';
     this.textBaseline = 'alphabetic';
-    this.canvas = surfaceElement;
+    this.canvas = canvasElement;
 
-    var el = surfaceElement.ownerDocument.createElement('div');
-    el.style.width =  surfaceElement.clientWidth + 'px';
-    el.style.height = surfaceElement.clientHeight + 'px';
-    el.style.overflow = 'hidden';
-    el.style.position = 'absolute';
-    surfaceElement.appendChild(el);
+    var cssText = 'width:' + canvasElement.clientWidth + 'px;height:' +
+        canvasElement.clientHeight + 'px;overflow:hidden;position:absolute';
+    var el = canvasElement.ownerDocument.createElement('div');
+    el.style.cssText = cssText;
+    canvasElement.appendChild(el);
+
+    var overlayEl = el.cloneNode(false);
+    // Use a non transparent background.
+    overlayEl.style.backgroundColor = 'red';
+    overlayEl.style.filter = 'alpha(opacity=0)';
+    canvasElement.appendChild(overlayEl);
 
     this.element_ = el;
     this.arcScaleX_ = 1;
