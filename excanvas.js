@@ -91,12 +91,7 @@ if (!document.createElement('canvas').getContext) {
 
   function addNamespace(doc, prefix, urn) {
     if (!doc.namespaces[prefix]) {
-      if (IE_VERSION >= 7) {
-        doc.namespaces.add(prefix, urn).doImport('#default#VML');
-      } else {
-        // IE6 cannot handle the third argument.
-        doc.namespaces.add(prefix, urn);
-      }
+      doc.namespaces.add(prefix, urn, '#default#VML');
     }
   }
 
