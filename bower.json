@@ -1,5 +1,6 @@
 {
     "name": "ExplorerCanvas",
+    "version": "1.0.0",
     "main": "excanvas.js",
     "homepage": "https://code.google.com/p/explorercanvas/",
     "authors": [
