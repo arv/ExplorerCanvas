@@ -688,8 +688,10 @@ if (!window.CanvasRenderingContext2D) {
   };
 
   contextPrototype.restore = function() {
-    copyState(this.aStack_.pop(), this);
-    setM(this, this.mStack_.pop());
+    if (this.aStack_.length) {
+      copyState(this.aStack_.pop(), this);
+      this.m_ = this.mStack_.pop();
+    }
   };
 
   contextPrototype.translate = function(aX, aY) {
