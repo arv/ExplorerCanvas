@@ -48,8 +48,6 @@ if (!document.createElement('canvas').getContext) {
   var Z = 10;
   var Z2 = Z / 2;
 
-  var IE_VERSION = +navigator.userAgent.match(/MSIE ([\d.]+)?/)[1];
-
   /**
    * This funtion is assigned to the <canvas> elements as element.getContext().
    * @this {HTMLElement}
